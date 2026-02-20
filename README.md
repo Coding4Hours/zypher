@@ -1,2 +1,2 @@
-# say bot
-its a bot that says stuff
+# zypher
+made it for zyhper https://discord.gg/wRNNhHEE8x :D
