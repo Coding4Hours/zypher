@@ -1,10 +1,12 @@
 import "dotenv/config"
-import { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
+import {
+	Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, PermissionFlagsBits, MessageFlags,
+} from "discord.js";
 
 const token = process.env.DISCORD_TOKEN;
 const clientId = process.env.CLIENT_ID;
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 
 const commands = [
 	new SlashCommandBuilder()
@@ -45,7 +47,7 @@ const rest = new REST({ version: '10' }).setToken(token);
 	}
 })();
 
-client.once('ready', () => {
+client.once('clientReady', () => {
 	console.log(`Logged in as ${client.user.tag}!`);
 });
 
@@ -59,18 +61,24 @@ client.on('interactionCreate', async interaction => {
 
 	if (interaction.commandName === 'purge') {
 		if (!interaction.guild) {
-			return interaction.reply({ content: 'This command can only be used in a server.', ephemeral: true });
+			return interaction.reply({ content: 'This command can only be used in a server.', flags: MessageFlags.Ephemeral });
 		}
-		if (!interaction.channel || !interaction.channel.bulkDelete) {
-			return interaction.reply({ content: 'I cannot purge messages in this channel.', ephemeral: true });
-		}
+		const targetChannel = interaction.channel;
 		const amount = interaction.options.getInteger('amount');
+
+		const botMember = interaction.guild.members.me;
+		if (!targetChannel.permissionsFor(botMember).has(PermissionFlagsBits.ManageMessages)) {
+			return interaction.reply({ content: 'I don\'t have permission to manage messages in this channel.', flags: MessageFlags.Ephemeral });
+		}
+
 		try {
-			const deletedMessages = await interaction.channel.bulkDelete(amount, true);
-			await interaction.reply({ content: `Successfully purged ${deletedMessages.size} messages.`, ephemeral: true });
+			await targetChannel.bulkDelete(amount, true).then(async messages => {
+				await interaction.reply({ content: `Successfully purged ${messages.size} messages.`, flags: MessageFlags.Ephemeral });
+			})
+				.catch(console.error);
 		} catch (error) {
-			console.error(error);
-			await interaction.reply({ content: 'There was an error while trying to purge messages in this channel. Make sure I have permissions to manage messages.', ephemeral: true });
+			console.error('Purge error:', error);
+			await interaction.reply({ content: 'There was an error while trying to purge messages. Make sure I have permissions to manage messages.', flags: MessageFlags.Ephemeral });
 		}
 	}
 });
